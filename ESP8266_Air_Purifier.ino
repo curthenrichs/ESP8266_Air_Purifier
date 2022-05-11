@@ -19,7 +19,36 @@
  *      - next state is low if prev state is high
  *      - next state is high if prev state is low
  *  - holding button when off does nothing
+ *  
+ *  
+ *  For Wifi using
+ *  - https://github.com/vintlabs/fauxmoESP
+ *  - https://github.com/tzapu/WiFiManager
+ *  
+ *  
+ *  
+ *  
+ *  
+ *  
+ *  To answer your query, please use "other devices" and not Phillips Hue on the Alexa app when discovering the lights.
+
+Phillips Hue bridge is not required,
+
+As far as my experience with this library goes, a physical alexa device (Atleast an echo dot) is necessary for discovering devices.
+
+
+
+
+There is a color mode -  its in development. Perhaps fork repo work on it then merge in?
+
+
+
+
+
  */
+
+#include <WiFiManager.h>
+#include <fauxmoESP.h>
 
 #define CTRL_BTN_PIN        D5
 #define LED_HI_STATE_PIN    D6
@@ -34,6 +63,8 @@ typedef enum purifier_state {
 } purifier_state_t;
 
 
+static WiFiManager wifiManager;
+static fauxmoESP fauxmo;
 
 static bool blinkState = false;
 static unsigned long blinkTime;
@@ -52,10 +83,24 @@ void setup() {
 
   digitalWrite(CTRL_BTN_PIN, LOW);
 
+  wifiManager.autoConnect("AP-ESP8266-Air-Purifier");
+
+  //TODO should this only be enabled when wifimanager successfully connects?
+  fauxmo.addDevice("air purifier");
+  fauxmo.setPort(80);
+  fauxmo.enable(true);
+
+  fauxmo.onSetState(fauxmo_callback);
+  
   blinkTime = millis();
 
   Serial.flush();
 }
+
+void fauxmo_callback(unsigned char device_id, const char * device_name, bool state, unsigned char value) {
+  Serial.printf("[MAIN] Device #%d (%s) state: %s value: %d\n", device_id, device_name, state ? "ON" : "OFF", value);
+}
+
 
 void loop() {
   unsigned long currentTime = millis();
@@ -104,7 +149,8 @@ void loop() {
       rxBufferIdx++;
     }
   }
-  
+
+  fauxmo.handle();
 }
 
 unsigned long blinkDurationByState(purifier_state_t st) {
