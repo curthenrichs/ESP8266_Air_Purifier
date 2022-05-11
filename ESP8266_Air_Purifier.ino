@@ -72,6 +72,9 @@ static purifier_state_t hwState;
 static char rxBuffer[50];
 static int rxBufferIdx = 0;
 
+static volatile bool cmdState = false;
+static volatile bool change_flag = false;
+
 
 void setup() {
   Serial.begin(9600);
@@ -98,7 +101,8 @@ void setup() {
 }
 
 void fauxmo_callback(unsigned char device_id, const char * device_name, bool state, unsigned char value) {
-  Serial.printf("[MAIN] Device #%d (%s) state: %s value: %d\n", device_id, device_name, state ? "ON" : "OFF", value);
+    cmdState = state;
+    change_flag = true;
 }
 
 
@@ -151,6 +155,20 @@ void loop() {
   }
 
   fauxmo.handle();
+
+  if (change_flag) {
+    change_flag = false;
+      if (cmdState && hwState == PURIFIER_OFF) {
+        transitionState();
+      } else if (!cmdState && hwState == PURIFIER_HI) {
+        transitionState();
+        delay(500);
+        transitionState();
+      } else if (!cmdState && hwState == PURIFIER_LO) {
+        transitionState();
+      }
+  }
+  
 }
 
 unsigned long blinkDurationByState(purifier_state_t st) {
