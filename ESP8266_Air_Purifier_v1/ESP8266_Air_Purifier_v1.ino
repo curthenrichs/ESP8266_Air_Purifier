@@ -382,7 +382,7 @@ static void _pushStateSetup(polip_device_t* dev, JsonDocument& doc) {
     switch (_targetState(_currentState, _queuedPulses)) {
         case PURIFIER_OFF:
             stateObj["power"] = "off";
-            // Mode don't care
+            stateObj["mode"] = "hi";
             break;
         case PURIFIER_HI:
             stateObj["power"] = "on";
