@@ -39,6 +39,40 @@
  *  [high] -> Sets state to high speed
  *  [off] -> Sets state to off
  *  [error?] -> Queries error status of polip lib
+ * 
+ * Hardware Theory of Operation:
+ * ---
+ * Soldered onto PCB ~
+ *  Blue Wire = LO = 1.8V on (read high on ESP8266), 0V off
+ *   - Indicates state
+ *  White Wire = HI = 2.3V on (read high on ESP8266), 0V off
+ *   - Indicates state
+ *  Green Wire = BTN = 5V pulled up, 0V on click
+ *   - Control state
+ * 
+ * For Button ~
+ *   We tied green wire to a MOSFET actuated by ESP8266
+ *   Fast click to ground toggles state [Off, High, Low, Off, ...]
+ *   If on and hold button
+ *     - turns off
+ *       - next state is low if prev state is high
+ *       - next state is high if prev state is low
+ *     - holding button when off does nothing
+ * 
+ * For ESP8266 Pinout, followed guide ~
+ * https://randomnerdtutorials.com/esp8266-pinout-reference-gpios/
+ *   D0 for wifi-manger reset button (pulled high at boot and we also pull high for btn)
+ *   D5 CTRL button (D5 has no pull up/down)
+ *   D6, D7 for Hi and Lo state from purifier (no pull up / down so safe for external interface)
+ *   Builtin LED for status
+ * 
+ * Tracking state transition:
+ * ---
+ * All queued button presses are tracked as an integer counter. When a new press
+ * is triggered, the firmware flips a bool to true. State change tracker
+ * checks this flag to determine if the state change was induced by firmware
+ * or user press. If unexpected change (transition bool is false but state
+ * changed) then we know to push new state to polip server.
  */
 
 //==============================================================================
@@ -86,7 +120,7 @@
     | digitalRead(LED_HI_STATE_PIN) << 0)                                      \
 )
 
-#define writeStatusLED(state)(digitalWrite(STATUS_LED_PIN, (bool)(state)))
+#define writeStatusLED(state) (digitalWrite(STATUS_LED_PIN, (bool)(state)))
 
 //==============================================================================
 //  Enumerated Constants
@@ -421,16 +455,14 @@ static void _pollStateResponse(polip_device_t* dev, JsonDocument& doc) {
         Serial.println(F("INVALID POWER PROVIDED BY SERVER"));
     }
 
-    if (serverState == PURIFIER_FAULT) {
-        return;
-    } else if (_targetState(_currentState, _queuedPulses + _transitionActive) == serverState) {
-        return;
-    } else if ((_currentState == serverState && !_transitionActive) || (_targetState(_currentState,1) == serverState && _transitionActive)) {
-        _queuedPulses = 0;
-        return;
-    } else {
-        _queuedPulses = _numberOfPulses(_currentState, serverState) - _transitionActive;
-        return;
+    if ((serverState != PURIFIER_FAULT) 
+            && (_targetState(_currentState, _queuedPulses + (int)_transitionActive) != serverState)) {
+
+        if (_targetState(_currentState, (int)_transitionActive) == serverState) {
+            _queuedPulses = 0;
+        } else {
+            _queuedPulses = _numberOfPulses(_currentState, serverState) - (int)_transitionActive;
+        }
     }
 }
 
