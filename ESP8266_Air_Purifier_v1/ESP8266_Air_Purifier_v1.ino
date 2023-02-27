@@ -265,7 +265,7 @@ void loop() {
     }
 
     // Update Polip Server
-    polip_workflow_periodic_update(&_polipWorkflow, _doc, _timeClient.getFormattedTime().c_str(), currentTime);
+    polip_workflow_periodic_update(&_polipWorkflow, _doc, _timeClient.getFormattedDate().c_str(), currentTime);
 
     // Serial debugging interface provides full state control
     while (Serial.available() > 0) {
